@@ -45,6 +45,8 @@ int bindSocket(struct addrinfo *addressInfo)
     
     if(setSocketOptionStatus < 0)
         printf("Error: could not set socket option\n");
+    
+    printf("%i\n", addressInfo->ai_addr);
 
     int bindStat = bind(sockfd, addressInfo->ai_addr, addressInfo->ai_addrlen);
 
