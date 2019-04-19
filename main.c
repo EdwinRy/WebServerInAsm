@@ -16,6 +16,7 @@ struct addrinfo* getHostInfo(char* port)
 
     struct addrinfo *hostInfo;
     int errorCode = getaddrinfo(NULL, port, &socketHints, &hostInfo);
+    printf("%i\n", hostInfo->ai_addr);
     if(errorCode)
     {
         printf("Error whilst getting address info: %s\n", 
@@ -118,6 +119,8 @@ int main()
     {
         newSocketFd = 
             accept(sockfd, (struct sockaddr*) &clientAddr, &clientSize);
+
+        printf("here\n");
 
         if(newSocketFd < 0) printf("Error on connection accept\n");
 
