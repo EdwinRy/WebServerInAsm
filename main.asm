@@ -10,8 +10,16 @@ extern bind
 extern listen
 extern accept
 extern perror
+extern recv
+extern memset
+extern strtok
+extern strlen
+extern fopen
 extern close
+extern strcmp
 extern freeaddrinfo
+extern fclose
+extern send
 
 %macro printHere 0
     mov rdi, hereMsg
@@ -138,7 +146,118 @@ serveRequest:
     ;function enter
     push    rbp
     mov     rbp, rsp
-    sub     rsp, 16
+    sub     rsp, 1600
+
+    ;init locals
+    mov     dword [rbp-4], edi  ;request
+    mov     qword [rbp-12], 0 ;method (char*)
+    mov     qword [rbp-20], 0 ;url (char*)
+    mov     dword [rbp-24], 0 ;reqSize (int)
+
+    
+
+    ;clear buffer
+    lea     rdi, [rbp-1600]
+    mov     rsi, 0
+    mov     rdx, 1500
+    call    memset
+
+
+    ;call recv
+    mov     edi, dword [rbp-4] ;req
+    lea     rsi, [rbp-1600] ;buffer
+    mov     rdx, 1500 ;REQUEST_BUFFER_SIZE
+    mov     rcx, 0
+    call    recv
+
+    ;call strtok
+    lea     rdi, [rbp-1600]
+    mov     rsi, spaceStr
+    call    strtok
+
+    ;save method
+    mov     qword [rbp-12], rax
+
+    printHere
+
+    mov     rdi, intOutF
+    mov     rsi, qword [rbp-12]
+    call    printf
+
+    mov     rdi, strOutF
+    mov     rsi, qword [rbp-12]
+    call    printf
+
+    ;if(strcmp(method, "GET") == 0)
+    mov     rdi, qword [rbp-12] ;method
+    mov     rsi, qword getStr ;"GET"
+    call    strcmp
+    printHere
+
+    cmp     rax, 0
+    jne     notGetReq
+
+
+    ;serve GET request
+
+    ;get url
+    mov     rdi, 0
+    mov     rsi, spaceStr
+    call    strtok
+    mov     qword [rbp-20], rax
+
+    ; printHere
+
+    ;skip beginning slash
+    movzx   eax, BYTE [rbp-20]
+    cmp     eax, 47
+    jne     noBeginningSlash
+
+    ; printHere
+
+    ;url++
+    inc     qword [rbp-20]
+    noBeginningSlash:
+
+    ;open a file
+    mov rdi, qword [rbp-20]
+    mov rsi, rStr
+    call fopen
+
+    mov qword[rbp-28], rax
+
+    ;while read file
+    lea     rdi, [rbp-1600]
+    mov     rsi, 1500
+    mov     rdx, qword[rbp-28]
+    cmp     rax, 0
+    je      serveRequestWhileFgetsEnd
+
+    ;send buffer
+    lea     rdi, [rbp-1600]
+    call    strlen
+
+    mov     edi, dword [rbp-4]
+    lea     rsi, [rbp-1600]
+    mov     rdx, rax
+    mov     rcx, 0
+    call    send
+
+    ;clear buffer
+    lea     rdi, [rbp-1600]
+    mov     rsi, 0
+    mov     rdx, 1500
+    call    memset
+    
+
+
+    serveRequestWhileFgetsEnd:
+    mov rdi, qword [rbp-20]
+    call fclose
+
+    notGetReq:
+
+
 
     
 
@@ -183,17 +302,15 @@ main:
     call    printf
     noListenError:
 
-    mov rdi, listeningOnPort
-    mov rsi, qword [rbp-8]
-    call printf
+    mov     rdi, listeningOnPort
+    mov     rsi, qword [rbp-8]
+    call    printf
 
     mov     dword [rbp-28], 0 ;newSocketFd
     ; struct sockaddrin is at [rbp-44]
     mov     dword [rbp-48], 16 ;client size
 
     mainLoop:
-
-    printHere
 
     ; call accept
     mov     edi, dword [rbp-24] ;sockfd
@@ -209,19 +326,17 @@ main:
     call    printf
     noAcceptError:
 
-    printHere
+    mov     rdi, intOutF
+    mov     esi, dword [rbp-28]
+    call    printf
 
     ; call serve request
     mov     edi, dword [rbp-28]
     call    serveRequest
 
-    printHere
-
     ; call connection close
     mov     edi, dword [rbp-28]
     call    close
-
-    printHere
 
     jmp     mainLoop
 
@@ -234,10 +349,14 @@ section .data
     portStr db "4200", 0x0
     hereMsg db "here", 0x0;, 0xa
     intOutF db "%i", 0xa, 0x0
+    strOutF db "%s", 0xa, 0x0
     openSocketErr db "Error: could not open socket", 0xa, 0x0
     setSockOptErr db "Error: could not set socket option", 0xa, 0x0
     bindSockErr db "Error: could not bind socket", 0xa, 0x0
     sockListenErr db "Error: could not listen at socket", 0xa, 0x0
     acceptError db "Error on connection accept", 0xa, 0x0
     listeningOnPort db "Listening on port %s", 0xa, 0x0
+    spaceStr db " ", 0x0
+    getStr db "GET", 0x0
+    rStr db "r", 0x0
     ; intOutF db "%#8x", 0xa

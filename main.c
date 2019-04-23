@@ -5,7 +5,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 
-#define REQUEST_BUFFER_SIZE 1000
+#define REQUEST_BUFFER_SIZE 5000
 
 struct addrinfo* getHostInfo(char* port)
 {
@@ -58,31 +58,49 @@ int bindSocket(struct addrinfo *addressInfo)
     return sockfd;
 }
 
+void sendHeader(int req)
+{
+    char buffer[500] = {0};
+    sprintf(buffer, "HTTP/1.0 200 OK\r\n\r\n");
+    send(req, buffer, strlen(buffer), 0);
+}
+
 void serveRequest(int req)
 {
+    printf("Serving request\n");
     char buffer[REQUEST_BUFFER_SIZE];
+    memset(buffer, 0, REQUEST_BUFFER_SIZE);
     char *method;
     char *url;
     int reqSize;
 
-    recv(req, buffer, REQUEST_BUFFER_SIZE, 0);
+    
+    printf("+here0\n");
+    if(recv(req, buffer, REQUEST_BUFFER_SIZE, 0) <= 0)return;
+    printf("%s\n", buffer);
+    printf("+here1\n");
     method = strtok(buffer, " ");
+    printf("+here2\n");
 
     // Handle GET request
     if(strcmp(method, "GET") == 0)
     {
         url = strtok(NULL, " ");
+        printf("+here3\n");
 
         // Strip beginning slash
         if(url[0] == '/') url++;
 
-        // Send requested file
+        sendHeader(req);
+        printf("+here4\n");
         FILE *f = fopen(url, "r");
         while(fgets(buffer, REQUEST_BUFFER_SIZE, f))
+        // Send requested file
         {
             send(req, buffer, strlen(buffer), 0);
             memset(buffer, 0, REQUEST_BUFFER_SIZE);
         }
+        printf("+here5\n");
         fclose(f);
     }
 
@@ -101,7 +119,7 @@ void serveRequest(int req)
 int main()
 {
     char* port = "4200";
-    unsigned int backlogQueueLength = 20;
+    unsigned int backlogQueueLength = 10;
 
 
     struct addrinfo *addressInfo = getHostInfo("4200");
@@ -114,18 +132,23 @@ int main()
 
     int newSocketFd;
     struct sockaddr_in clientAddr;
-    int clientSize = sizeof(clientAddr);
     for(;;)
     {
+        int clientSize = sizeof(clientAddr);
+        printf("here0\n");
         newSocketFd = 
             accept(sockfd, (struct sockaddr*) &clientAddr, &clientSize);
 
         printf("here\n");
+        printf("%i\n", newSocketFd);
 
         if(newSocketFd < 0) printf("Error on connection accept\n");
 
+        printf("here2\n");
         serveRequest(newSocketFd);
+        printf("here3\n");
         close(newSocketFd);
+        printf("here4\n");
     }
 
     close(sockfd);
