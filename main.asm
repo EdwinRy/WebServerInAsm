@@ -20,6 +20,7 @@ extern strcmp
 extern freeaddrinfo
 extern fclose
 extern send
+extern sprintf
 
 %macro printHere 0
     mov rdi, hereMsg
@@ -142,11 +143,42 @@ bindSocket:
     leave
     ret
 
+sendHeader:
+    ;function enter
+    push    rbp
+    mov     rbp, rsp
+    sub     rsp, 500
+
+    ;save param (request)
+    mov     dword [rbp-504], edi
+
+    ;clear buffer
+    lea     rdi, [rbp-500]
+    mov     rsi, 0
+    mov     rdx, 500
+    call    memset
+
+    lea     rdi, [rbp-500]
+    mov     rsi, httpOk
+    call    sprintf
+
+    lea     rdi, [rbp-500]
+    call    strlen
+
+    mov     edi, dword [rbp-504]
+    lea     rsi, [rbp-500]
+    mov     rdx, rax
+    mov     rcx, 0
+    call    send
+
+    leave
+    ret
+
 serveRequest:
     ;function enter
     push    rbp
     mov     rbp, rsp
-    sub     rsp, 1600
+    sub     rsp, 5000
 
     ;init locals
     mov     dword [rbp-4], edi  ;request
@@ -154,49 +186,44 @@ serveRequest:
     mov     qword [rbp-20], 0 ;url (char*)
     mov     dword [rbp-24], 0 ;reqSize (int)
 
-    
-
     ;clear buffer
-    lea     rdi, [rbp-1600]
+    lea     rdi, [rbp-5000]
     mov     rsi, 0
-    mov     rdx, 1500
+    mov     rdx, 4000
     call    memset
-
 
     ;call recv
     mov     edi, dword [rbp-4] ;req
-    lea     rsi, [rbp-1600] ;buffer
-    mov     rdx, 1500 ;REQUEST_BUFFER_SIZE
+    lea     rsi, [rbp-5000] ;buffer
+    mov     rdx, 4000 ;REQUEST_BUFFER_SIZE
     mov     rcx, 0
     call    recv
 
+    cmp     rax, 0
+    jle     notGetReq
+
+
+    mov     rdi, strOutF
+    lea     rsi, [rbp-5000]
+    call    printf
+
     ;call strtok
-    lea     rdi, [rbp-1600]
+    lea     rdi, [rbp-5000]
     mov     rsi, spaceStr
     call    strtok
 
     ;save method
     mov     qword [rbp-12], rax
 
-    printHere
-
-    mov     rdi, intOutF
-    mov     rsi, qword [rbp-12]
-    call    printf
-
-    mov     rdi, strOutF
-    mov     rsi, qword [rbp-12]
-    call    printf
-
     ;if(strcmp(method, "GET") == 0)
     mov     rdi, qword [rbp-12] ;method
     mov     rsi, qword getStr ;"GET"
     call    strcmp
-    printHere
 
     cmp     rax, 0
     jne     notGetReq
 
+printHere
 
     ;serve GET request
 
@@ -206,60 +233,56 @@ serveRequest:
     call    strtok
     mov     qword [rbp-20], rax
 
-    ; printHere
-
     ;skip beginning slash
     movzx   eax, BYTE [rbp-20]
     cmp     eax, 47
     jne     noBeginningSlash
 
-    ; printHere
-
     ;url++
     inc     qword [rbp-20]
     noBeginningSlash:
 
-    ;open a file
-    mov rdi, qword [rbp-20]
-    mov rsi, rStr
-    call fopen
+    mov     edi, dword [rbp-4]
+    call sendHeader
 
-    mov qword[rbp-28], rax
+    ;open a file
+    mov     rdi, qword [rbp-20]
+    mov     rsi, rStr
+    call    fopen
+
+    mov     qword[rbp-32], rax
 
     ;while read file
-    lea     rdi, [rbp-1600]
-    mov     rsi, 1500
-    mov     rdx, qword[rbp-28]
+    serveReqReadFile:
+    lea     rdi, [rbp-5000]
+    mov     rsi, 4000
+    mov     rdx, qword[rbp-32]
     cmp     rax, 0
     je      serveRequestWhileFgetsEnd
 
     ;send buffer
-    lea     rdi, [rbp-1600]
+    lea     rdi, [rbp-5000]
     call    strlen
 
     mov     edi, dword [rbp-4]
-    lea     rsi, [rbp-1600]
+    lea     rsi, [rbp-5000]
     mov     rdx, rax
     mov     rcx, 0
     call    send
 
     ;clear buffer
-    lea     rdi, [rbp-1600]
+    lea     rdi, [rbp-5000]
     mov     rsi, 0
-    mov     rdx, 1500
+    mov     rdx, 4000
     call    memset
     
-
+    jmp serveReqReadFile
 
     serveRequestWhileFgetsEnd:
-    mov rdi, qword [rbp-20]
-    call fclose
+    mov     rdi, qword [rbp-20]
+    call    fclose
 
     notGetReq:
-
-
-
-    
 
     leave
     ret
@@ -317,7 +340,8 @@ main:
     lea     rsi, [rbp-44] ;clientAddr
     lea     rdx, [rbp-48]
     call    accept
-    
+
+    mov dword [rbp-28], eax ;save new socket file descriptor
 
     ;check for accept status
     cmp     eax, 0
@@ -326,9 +350,9 @@ main:
     call    printf
     noAcceptError:
 
-    mov     rdi, intOutF
-    mov     esi, dword [rbp-28]
-    call    printf
+    ; mov     rdi, intOutF
+    ; mov     esi, dword [rbp-28]
+    ; call    printf
 
     ; call serve request
     mov     edi, dword [rbp-28]
@@ -359,4 +383,5 @@ section .data
     spaceStr db " ", 0x0
     getStr db "GET", 0x0
     rStr db "r", 0x0
+    httpOk db "HTTP/1.0 200 OK", 0xd, 0xa, 0xd, 0xa
     ; intOutF db "%#8x", 0xa
