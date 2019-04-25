@@ -93,15 +93,34 @@ void serveRequest(int req)
 
         sendHeader(req);
         printf("+here4\n");
+        printf("url %s\n", url);
         FILE *f = fopen(url, "r");
-        while(fgets(buffer, REQUEST_BUFFER_SIZE, f))
-        // Send requested file
+        printf("file: %i\n", f);
+
+        if(f != 0)
         {
-            send(req, buffer, strlen(buffer), 0);
-            memset(buffer, 0, REQUEST_BUFFER_SIZE);
+            while(fgets(buffer, REQUEST_BUFFER_SIZE, f))
+            // Send requested file
+            {
+                send(req, buffer, strlen(buffer), 0);
+                memset(buffer, 0, REQUEST_BUFFER_SIZE);
+            }
+            printf("+here5\n");
+            fclose(f);
         }
-        printf("+here5\n");
-        fclose(f);
+        else
+        {
+            FILE *f = fopen("404.html", "r");
+            while(fgets(buffer, REQUEST_BUFFER_SIZE, f))
+            // Send requested file
+            {
+                send(req, buffer, strlen(buffer), 0);
+                memset(buffer, 0, REQUEST_BUFFER_SIZE);
+            }
+            printf("+here5\n");
+            fclose(f);
+        }
+        
     }
 
     // Handle SET request

@@ -19,6 +19,7 @@ extern close
 extern strcmp
 extern freeaddrinfo
 extern fclose
+extern fgets
 extern send
 extern sprintf
 
@@ -147,26 +148,27 @@ sendHeader:
     ;function enter
     push    rbp
     mov     rbp, rsp
-    sub     rsp, 500
+    sub     rsp, 640
 
     ;save param (request)
-    mov     dword [rbp-504], edi
+    mov     dword [rbp-636], edi
 
     ;clear buffer
-    lea     rdi, [rbp-500]
+    lea     rdi, [rbp-636]
     mov     rsi, 0
-    mov     rdx, 500
+    mov     rdx, 636
     call    memset
 
-    lea     rdi, [rbp-500]
+    lea     rdi, [rbp-636]
     mov     rsi, httpOk
     call    sprintf
 
-    lea     rdi, [rbp-500]
+
+    lea     rdi, [rbp-636]
     call    strlen
 
-    mov     edi, dword [rbp-504]
-    lea     rsi, [rbp-500]
+    mov     edi, dword [rbp-640]
+    lea     rsi, [rbp-636]
     mov     rdx, rax
     mov     rcx, 0
     call    send
@@ -178,7 +180,7 @@ serveRequest:
     ;function enter
     push    rbp
     mov     rbp, rsp
-    sub     rsp, 5000
+    sub     rsp, 8000
 
     ;init locals
     mov     dword [rbp-4], edi  ;request
@@ -186,16 +188,20 @@ serveRequest:
     mov     qword [rbp-20], 0 ;url (char*)
     mov     dword [rbp-24], 0 ;reqSize (int)
 
+    mov     rdi, intOutF
+    mov     esi, dword [rbp-4]
+    call    printf
+
     ;clear buffer
-    lea     rdi, [rbp-5000]
+    lea     rdi, [rbp-8000]
     mov     rsi, 0
-    mov     rdx, 4000
+    mov     rdx, 7500
     call    memset
 
     ;call recv
     mov     edi, dword [rbp-4] ;req
-    lea     rsi, [rbp-5000] ;buffer
-    mov     rdx, 4000 ;REQUEST_BUFFER_SIZE
+    lea     rsi, [rbp-8000] ;buffer
+    mov     rdx, 7500 ;REQUEST_BUFFER_SIZE
     mov     rcx, 0
     call    recv
 
@@ -204,11 +210,12 @@ serveRequest:
 
 
     mov     rdi, strOutF
-    lea     rsi, [rbp-5000]
+    lea     rsi, [rbp-8000]
     call    printf
 
+
     ;call strtok
-    lea     rdi, [rbp-5000]
+    lea     rdi, [rbp-8000]
     mov     rsi, spaceStr
     call    strtok
 
@@ -223,8 +230,6 @@ serveRequest:
     cmp     rax, 0
     jne     notGetReq
 
-printHere
-
     ;serve GET request
 
     ;get url
@@ -233,8 +238,23 @@ printHere
     call    strtok
     mov     qword [rbp-20], rax
 
+    ;print url
+    mov     rdi, strOutF
+    mov     rsi, rax
+    call    printf
+
+    mov     rax, QWORD [rbp-20]
+    movzx   eax, BYTE [rax]
+    movsx   eax, al
+    mov     esi, eax
+    mov     edi, intOutF
+    mov     eax, 0
+    call    printf
+
     ;skip beginning slash
-    movzx   eax, BYTE [rbp-20]
+    mov     rax, QWORD [rbp-20]
+    movzx   eax, BYTE [rax]
+    movsx   eax, al
     cmp     eax, 47
     jne     noBeginningSlash
 
@@ -243,7 +263,7 @@ printHere
     noBeginningSlash:
 
     mov     edi, dword [rbp-4]
-    call sendHeader
+    call    sendHeader
 
     ;open a file
     mov     rdi, qword [rbp-20]
@@ -252,36 +272,55 @@ printHere
 
     mov     qword[rbp-32], rax
 
+    cmp     rax, 0
+    je      fileNotFound
+    jmp     serveReqReadFile
+
+    fileNotFound:
+    ;open alternative file
+    mov     rdi, altFile
+    mov     rsi, rStr
+    call    fopen
+
+    mov     qword[rbp-32], rax
+
+    cmp     rax, 0
+    je      notGetReq
+
     ;while read file
     serveReqReadFile:
-    lea     rdi, [rbp-5000]
-    mov     rsi, 4000
+    lea     rdi, [rbp-8000]
+    mov     rsi, 7500
     mov     rdx, qword[rbp-32]
+    call    fgets
     cmp     rax, 0
     je      serveRequestWhileFgetsEnd
 
     ;send buffer
-    lea     rdi, [rbp-5000]
+    lea     rdi, [rbp-8000]
     call    strlen
 
     mov     edi, dword [rbp-4]
-    lea     rsi, [rbp-5000]
+    lea     rsi, [rbp-8000]
     mov     rdx, rax
     mov     rcx, 0
     call    send
 
+
     ;clear buffer
-    lea     rdi, [rbp-5000]
+    lea     rdi, [rbp-8000]
     mov     rsi, 0
-    mov     rdx, 4000
+    mov     rdx, 7500
     call    memset
     
-    jmp serveReqReadFile
+
+    jmp     serveReqReadFile
 
     serveRequestWhileFgetsEnd:
-    mov     rdi, qword [rbp-20]
+    printHere
+    mov     rdi, qword[rbp-32]
     call    fclose
-
+    printHere
     notGetReq:
 
     leave
@@ -291,7 +330,7 @@ main:
     ;function enter
     push    rbp
     mov     rbp, rsp
-    sub     rsp, 64
+    sub     rsp, 80
 
     ;port number
     mov     qword [rbp-8], portStr
@@ -384,4 +423,5 @@ section .data
     getStr db "GET", 0x0
     rStr db "r", 0x0
     httpOk db "HTTP/1.0 200 OK", 0xd, 0xa, 0xd, 0xa
+    altFile db "404.html", 0x0
     ; intOutF db "%#8x", 0xa
