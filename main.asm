@@ -306,14 +306,12 @@ serveRequest:
     mov     rcx, 0
     call    send
 
-
     ;clear buffer
     lea     rdi, [rbp-8000]
     mov     rsi, 0
     mov     rdx, 7500
     call    memset
     
-
     jmp     serveReqReadFile
 
     serveRequestWhileFgetsEnd:
@@ -338,7 +336,6 @@ main:
     ;length of the backlog queue
     mov     dword [rbp-12], 20
     
-
     ;get info about the host
     mov     rdi, portStr
     call    getHostInfo
@@ -388,10 +385,6 @@ main:
     mov     rdi, acceptError
     call    printf
     noAcceptError:
-
-    ; mov     rdi, intOutF
-    ; mov     esi, dword [rbp-28]
-    ; call    printf
 
     ; call serve request
     mov     edi, dword [rbp-28]
